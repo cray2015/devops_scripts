@@ -1,0 +1,12 @@
+FROM jrei/systemd-ubuntu AS base
+RUN apt update
+RUN apt install software-properties-common -y
+RUN add-apt-repository ppa:deadsnakes/ppa
+RUN apt update
+RUN apt install python3 python3-pip -y
+RUN pip3 install requests
+
+FROM base as final
+WORKDIR $HOME
+COPY node_exporter_install.py .
+ENTRYPOINT ["python3", "node_exporter_install.py"]

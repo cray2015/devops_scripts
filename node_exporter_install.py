@@ -1,13 +1,14 @@
 import os
+import sys
+import stat
 import requests
 import subprocess
-import sys
 import tarfile
-from shutil import copyfile
+import shutil
 import grp
 from pwd import getpwnam
 
-# This program can be modified to be a selector for selecting the latest flavour of the exporter
+# This program can be modified to be a selector for selecting the arch version of the exporter
 
 
 class bcolors:
@@ -48,10 +49,14 @@ def call_subprocess(call_args):
 def download_node_exporter_tarball():
     print_ok_msg('Downloading the latest release')
     call_args = ['curl', '-LO', RELEASE_URL]
+    print(RELEASE_URL)
 
     try:
-        call_subprocess(call_args)
-    except:
+        response = requests.get(
+            url=RELEASE_URL)
+        open(RELEASE_NAME, 'wb').write(response.content)
+    except Exception as e:
+        print(e.args)
         print_error_msg(
             '---Failed to download the latest release---' + bcolors.ENDC)
         sys.exit(1)
@@ -105,8 +110,8 @@ def check_and_create_node_exporter_user():
         print_ok_msg('node_exporter user already exists')
         # executing useradd command using subprocess module
     except Exception as e:
-        x, y = e.args
-        if x.find('name not found') > -1:
+        x = e.args
+        if x[0].find('name not found') > -1:
             create_user()
         else:
             print_ok_msg('node_exporter user already exists')
@@ -115,7 +120,8 @@ def check_and_create_node_exporter_user():
 def copy_node_exporter_to_usr_bin_dir():
     print_ok_msg('Copying node_exporter bin to /usr/local/bin')
     try:
-        copyfile(DIR_NAME+'/node_exporter', '/usr/local/bin/node_exporter')
+        shutil.copyfile(DIR_NAME+'/node_exporter',
+                        '/usr/local/bin/node_exporter')
         # copyfile(DIR_NAME+'/node_exporter', os.curdir+'/node_exporter')
     except Exception as e:
         # print(e.args)
@@ -128,12 +134,13 @@ def copy_node_exporter_to_usr_bin_dir():
 def change_ownership_of_node_exporter():
     print_ok_msg(
         'Changing ownership of node_exporter in /usr/local/bin to node_exporter user')
-    call_args = ['chown', 'node_exporter:node_exporter',
-                 ]
+    BIN_LOCATION = '/usr/local/bin/node_exporter'
     try:
-        os.chown('/usr/local/bin/node_exporter', getpwnam(USR_GRP_NAME)
+        os.chown(BIN_LOCATION, getpwnam(USR_GRP_NAME)
                  [2], grp.getgrnam(USR_GRP_NAME)[2])
-
+        perms = os.stat(BIN_LOCATION)
+        os.chmod(BIN_LOCATION, perms.st_mode |
+                 stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     except Exception as e:
         print_error_msg('Failed to change ownership of node_exporter')
         print_error_msg('Reason:')
@@ -166,15 +173,19 @@ def create_node_exporter_service():
 
 def setup_and_enable_systemctl():
     print_ok_msg('Setting up systemctl')
-    os.system('systemctl daemon-reload')
-    os.system('systemctl start node_exporter')
-    os.system('systemctl enable node_exporter')
-    os.system('systemctl status node_exporter')
+    call_subprocess(['systemctl', 'daemon-reload'])
+    call_subprocess(['systemctl', 'start',  'node_exporter'])
+    call_subprocess(['systemctl', 'enable', 'node_exporter'])
+    call_subprocess(['systemctl', 'status', 'node_exporter'])
+    # os.system('systemctl daemon-reload')
+    # os.system('systemctl start node_exporter')
+    # os.system('systemctl enable node_exporter')
+    # os.system('systemctl status node_exporter')
 
 
 def cleanup():
-    os.system('systemctl stop node_exporter')
-    os.system('systemctl disable node_exporter')
+    os.remove(RELEASE_NAME)
+    shutil.rmtree(DIR_NAME)
 
 
 def main():
@@ -189,7 +200,7 @@ def main():
     change_ownership_of_node_exporter()
     create_node_exporter_service()
     setup_and_enable_systemctl()
-    # cleanup()
+    cleanup()
 
 
 main()
