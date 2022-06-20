@@ -9,7 +9,7 @@ import grp
 from pwd import getpwnam
 
 # This program can be modified to be a selector for selecting the arch version of the exporter
-
+# default port to open for node_exporter - 9100
 
 class bcolors:
     HEADER = '\033[95m'
